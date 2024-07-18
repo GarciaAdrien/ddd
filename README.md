@@ -1,5 +1,5 @@
 # my-beautiful-shop
-
+![image](https://github.com/user-attachments/assets/4ef88530-accc-46e4-ba5f-d61e2fd717f3)
 ![image](https://github.com/user-attachments/assets/49098bd5-54b5-454b-a1fd-6a7e12fd07fd)
 ![image](https://github.com/user-attachments/assets/31f98df4-9042-483e-b767-7839f213bc61)
 
