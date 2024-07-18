@@ -25,7 +25,7 @@ npm run build
 npm run lint
 ```
 
-### Modification de la base de données Postgres
+### Modification de la base de données Postgres 
 ```
 Edition init_db config
 ```
@@ -53,14 +53,20 @@ Ce projet est une application web permettant de gérer des tableaux de bord spé
 ## Fonctionnement
 
 ### Étape 1 : Création et Insertion des Données
-
+- Créer une base postgres et modifiez init_db selon les informations de votre BDD précédemment créer
+- Exemple :
+    user: 'postgres',
+    host: 'localhost',
+    password: '0804', // Remplacez par votre mot de passe PostgreSQL
+    port: 5433, // Port de votre PostgreSQL
+    database: 'postgres' // Remplacez par le nom de votre base de données 
 - Exécutez le script SQL pour créer et insérer les données dans une table `t_users`. Cette table permettra la connexion des utilisateurs sur le frontend.
 - t_access permet de creer des accès spécifiques pour chaque dashboard
 - t_user_acces permet aux users d'avoir accès a ces dashboards
 
 ### Étape 2 : Lancement du back
 - Telecharger toutes les bibliothèques python utiles au projet : 
-  cd C:\Users\Adrien\Desktop\ddd\my-beautiful-shop
+Exemple : cd C:\Users\Adrien\Desktop\ddd\my-beautiful-shop
   pip install -r requirements.txt
 
 - Executer script.py via l'invité de commandes cmd 
