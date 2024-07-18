@@ -7,6 +7,8 @@
 
 ## Project setup
 ```
+git clone  https://github.com/GarciaAdrien/ddd.git
+cd my-beautiful-shop
 npm install
 ```
 
@@ -68,6 +70,16 @@ Ce projet est une application web permettant de gérer des tableaux de bord spé
 - Telecharger toutes les bibliothèques python utiles au projet : 
 Exemple : cd C:\Users\Adrien\Desktop\ddd\my-beautiful-shop
   pip install -r requirements.txt
+
+-Modifiez la chaine de connexion a postgres dans le fichier script.py
+Exemple : db_connection = psycopg2.connect(
+    dbname='postgres',
+    user='postgres',
+    password='0804',
+    host='localhost',
+    port='5433'
+)
+
 
 - Executer script.py via l'invité de commandes cmd 
 Exemple : cd C:\Users\Adrien\Desktop\ddd\my-beautiful-shop
