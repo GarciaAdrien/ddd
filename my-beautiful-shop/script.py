@@ -3,14 +3,28 @@ import psycopg2
 import os
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
+from io import BytesIO
+import matplotlib
+import seaborn as sns
+
+matplotlib.use('Agg')  # Utiliser le backend 'Agg' de Matplotlib
+
 import matplotlib.pyplot as plt
 import io
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/fetch_csv": {"origins": "http://localhost:8080"}})
 CORS(app, resources={r"/login": {"origins": "http://localhost:8080"}})
 CORS(app, resources={r"/execute_script": {"origins": "http://localhost:8080"}})
 CORS(app, resources={r"/get_graph_commercial": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_commercial2": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_comptable3": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_comptable2": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_comptable1": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_direction2": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_graph_direction1": {"origins": "http://localhost:8080"}})
+CORS(app, resources={r"/get_satisfaction_by_category": {"origins": "http://localhost:8080"}})
 
 db_connection = psycopg2.connect(
     dbname='postgres',
@@ -29,45 +43,330 @@ def charger_donnees(lChemin_dossier):
             df = pd.read_csv(lChemin_fichier)
             dfs.append((lNom_dataframe, df))
     return dfs
-
-def generate_commercial_graphs():
+    
+def generate_direction_data1(dataframe_final_filtered):
     try:
-        # Chargement des données commerciales spécifiques
-        lChemin_Dossier = r'.\Data Centric\\archive\\'  # Adapter ce chemin selon vos données
-        donnees = charger_donnees(lChemin_Dossier)
+        # Conversion 'order_purchase_timestamp' en datetime si nécessaire
+        dataframe_final_filtered['order_purchase_timestamp'] = pd.to_datetime(dataframe_final_filtered['order_purchase_timestamp'])
 
-        # Exemple de traitement pour générer des graphiques (à adapter selon vos besoins)
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot([1, 2, 3, 4], [10, 20, 25, 30], label='Ventes mensuelles')
-        ax.set_xlabel('Mois')
-        ax.set_ylabel('Ventes')
-        ax.set_title('Ventes Mensuelles par Mois')
-        ax.legend()
+        # Grouper par mois et compter le nombre de commandes
+        orders_by_month = dataframe_final_filtered.groupby(dataframe_final_filtered['order_purchase_timestamp'].dt.to_period('M')).size()
 
-        # Conversion du graphique en image
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
+        # Préparer les données pour Chart.js
+        labels = orders_by_month.index.strftime('%Y-%m').tolist()  # Convert Index to list
+        data = orders_by_month.values.tolist()  # Valeurs de nombre de commandes
 
-        return buf
+        return {
+            'labels': labels,
+            'data': data
+        }
 
+    except Exception as e:
+        print(f"Erreur lors de la génération des données pour Direction 1 : {str(e)}")
+        return None
+
+        
+@app.route('/get_graph_direction1', methods=['GET'])
+def get_direction_data1():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        data = generate_direction_data1(dataframe_final_filtered)
+        if data:
+            return jsonify(data)
+        else:
+            return jsonify({'error': 'Données non disponibles'}), 500
+
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données pour Direction 1 : {str(e)}")
+        return jsonify({'error': 'Données non disponibles'}), 500
+
+def generate_direction_data2(dataframe_final_filtered):
+    try:
+        # Conversion 'order_purchase_timestamp' en datetime si nécessaire
+        dataframe_final_filtered['order_purchase_timestamp'] = pd.to_datetime(dataframe_final_filtered['order_purchase_timestamp'])
+
+        # Filtrage des données pour le mois de juillet 2018
+        data_july_2018 = dataframe_final_filtered[(dataframe_final_filtered['order_purchase_timestamp'].dt.year == 2018) &
+                                                  (dataframe_final_filtered['order_purchase_timestamp'].dt.month == 7)]
+
+        # Ajout de la colonne 'jour_du_mois' pour le jour du mois
+        data_july_2018['jour_du_mois'] = data_july_2018['order_purchase_timestamp'].dt.day
+
+        # Comptage du nombre de commandes pour chaque jour du mois et catégorie de produits
+        orders_by_day_and_category = data_july_2018.groupby(['jour_du_mois', 'product_category_name_english']).size().reset_index(name='nombre_commandes')
+
+        # Création de la pivot table
+        pivot_table = orders_by_day_and_category.pivot_table(index='jour_du_mois', columns='product_category_name_english', values='nombre_commandes', aggfunc='sum', fill_value=0)
+
+        # Réindexer pour inclure tous les jours de 1 à 31
+        pivot_table = pivot_table.reindex(range(1, 32), fill_value=0)
+
+        # Préparer les données pour Chart.js
+        labels = pivot_table.index.tolist()  # Jours du mois
+        categories = pivot_table.columns.tolist()  # Catégories de produits
+        data = pivot_table.values.tolist()  # Valeurs de nombre de commandes sous forme de liste de listes
+
+        return {
+            'labels': labels,
+            'datasets': [{
+                'label': category,
+                'data': [data[i][j] for i in range(len(labels))]  # Récupérer les données par jour
+            } for j, category in enumerate(categories)]
+        }
+
+    except Exception as e:
+        print(f"Erreur lors de la génération des données pour Direction 2 : {str(e)}")
+        return None
+
+
+
+
+@app.route('/get_graph_direction2', methods=['GET'])
+def get_direction_data2():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        data = generate_direction_data2(dataframe_final_filtered)
+        if data:
+            return jsonify(data)
+        else:
+            return jsonify({'error': 'Données non disponibles'}), 500
+
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données pour Direction 2 : {str(e)}")
+        return jsonify({'error': 'Données non disponibles'}), 500
+
+def generate_commercial_graph_data():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_fusionne = pd.read_csv(chemin_excel, sep=';')
+        
+        # Affichage des premières lignes du dataframe pour vérifier le contenu
+        print(dataframe_fusionne.head())
+        
+        if 'product_category_name_english' in dataframe_fusionne.columns:
+            top_categories = dataframe_fusionne['product_category_name_english'].value_counts().head(10)
+            
+            data = {
+                'labels': top_categories.index.tolist(),
+                'datasets': [{
+                    'label': 'Nombre d\'items vendus',
+                    'backgroundColor': 'rgba(75, 192, 192, 0.2)',
+                    'borderColor': 'rgba(75, 192, 192, 1)',
+                    'borderWidth': 1,
+                    'data': top_categories.values.tolist()
+                }]
+            }
+            return data
+        else:
+            print("La colonne 'product_category_name_english' n'existe pas dans le dataframe.")
+            return None
     except Exception as e:
         print(f"Erreur lors de la génération des graphiques commerciaux : {str(e)}")
         return None
 
 @app.route('/get_graph_commercial', methods=['GET'])
-def get_graph_commercial():
-    try:
-        # Générer les graphiques commerciaux
-        graph_buffer = generate_commercial_graphs()
+def get_graph_commercial_data():
+    data = generate_commercial_graph_data()
+    if data:
+        return jsonify(data)
+    else:
+        return jsonify({'error': 'Graphique non disponible'}), 500
 
-        if graph_buffer:
-            return send_file(graph_buffer, mimetype='image/png')
-        else:
-            return jsonify({'status': 'error', 'message': 'Impossible de générer les graphiques commerciaux'}), 500
+def generate_commercial_graph2_data():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        dataframe_final_filtered['order_purchase_timestamp'] = pd.to_datetime(dataframe_final_filtered['order_purchase_timestamp'])
+
+        def jours_ecoules_debut_mois(date):
+            premier_jour_mois = date.replace(day=1)
+            return (date - premier_jour_mois).days + 1
+
+        dataframe_final_filtered['jours_ecoules_debut_mois'] = dataframe_final_filtered['order_purchase_timestamp'].apply(jours_ecoules_debut_mois)
+
+        nombre_d_unites_vendues_par_produit = dataframe_final_filtered.groupby('product_id')['order_item_id'].sum().reset_index()
+
+        dataframe_final_filtered['price_storage_total'] = dataframe_final_filtered['price_storage_per_day'] * dataframe_final_filtered['jours_ecoules_debut_mois']
+        dataframe_final_filtered['coût_stockage_par_unité'] = dataframe_final_filtered['price_storage_total'] / nombre_d_unites_vendues_par_produit['order_item_id']
+
+        cost_data = dataframe_final_filtered.groupby('product_category_name_english')['coût_stockage_par_unité'].mean().reset_index()
+
+        data = {
+            'labels': cost_data['product_category_name_english'].tolist(),
+            'datasets': [{
+                'label': 'Coût moyen de stockage par unité vendue',
+                'backgroundColor': 'rgba(255, 99, 132, 0.2)',
+                'borderColor': 'rgba(255, 99, 132, 1)',
+                'borderWidth': 1,
+                'data': cost_data['coût_stockage_par_unité'].tolist()
+            }]
+        }
+        return data
+    except Exception as e:
+        print(f"Erreur lors de la génération du graphique commercial 2 : {str(e)}")
+        return None
+
+@app.route('/get_graph_commercial2', methods=['GET'])
+def get_graph_commercial2_data():
+    data = generate_commercial_graph2_data()
+    if data:
+        return jsonify(data)
+    else:
+        return jsonify({'error': 'Graphique non disponible'}), 500
+
+@app.route('/get_satisfaction_by_category', methods=['GET'])
+def get_satisfaction_by_category():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        # Calculer la moyenne de satisfaction par catégorie
+        satisfaction_by_category = dataframe_final_filtered.groupby('product_category_name_english')['review_score'].mean().reset_index()
+
+        # Préparer les données pour Vue Chart.js
+        labels = satisfaction_by_category['product_category_name_english'].tolist()
+        scores = satisfaction_by_category['review_score'].tolist()
+        
+        # Generate colors dynamically
+        num_categories = len(labels)
+        colors = generate_chart_colors(num_categories)
+
+        data = {
+            'labels': labels,
+            'scores': scores,
+            'colors': colors  # Include colors in the response
+        }
+
+        return jsonify(data)
+    
+    except Exception as e:
+        print(f"Erreur lors de la récupération de la satisfaction par catégorie : {str(e)}")
+        return jsonify({'error': 'Données non disponibles'}), 500
+
+def generate_chart_colors(num_colors):
+    # Example function to generate random colors or use a predefined color palette
+    # This should generate num_colors number of colors
+    # You can modify this function based on your color requirements
+    import random
+    return ['#' + ''.join(random.choices('0123456789ABCDEF', k=6)) for _ in range(num_colors)]
+
+# Route pour le premier graphique
+@app.route('/get_graph_comptable1', methods=['GET'])
+def get_graph_comptable1():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        # Manipulation des données et calculs
+        dataframe_final_filtered['order_purchase_timestamp'] = pd.to_datetime(dataframe_final_filtered['order_purchase_timestamp'])
+
+        def jours_ecoules_debut_mois(date):
+            premier_jour_mois = date.replace(day=1)
+            return (date - premier_jour_mois).days + 1
+
+        dataframe_final_filtered['jours_ecoules_debut_mois'] = dataframe_final_filtered['order_purchase_timestamp'].apply(jours_ecoules_debut_mois)
+
+        dataframe_final_filtered['price_storage_total'] = dataframe_final_filtered['price_storage_per_day'] * dataframe_final_filtered['jours_ecoules_debut_mois']
+        dataframe_final_filtered['prix_total'] = dataframe_final_filtered['price'] + dataframe_final_filtered['price_storage_total'] + dataframe_final_filtered['price_delivery']
+        dataframe_final_filtered['marge_brute'] = dataframe_final_filtered['prix_total'] - (dataframe_final_filtered['price_storage_total'] + dataframe_final_filtered['price_delivery'] + dataframe_final_filtered['price_storage_per_day'])
+
+        top_categories = dataframe_final_filtered['product_category_name_english'].value_counts().head(10).index
+        df_top_categories = dataframe_final_filtered[dataframe_final_filtered['product_category_name_english'].isin(top_categories)]
+        df_plot_marge_brute = df_top_categories.groupby('product_category_name_english')['marge_brute'].sum().reset_index()
+        # Préparation des données pour le graphique
+        data = {
+            'labels': list(df_plot_marge_brute['product_category_name_english']),
+            'values': list(df_plot_marge_brute['marge_brute'])
+        }
+
+        return jsonify(data)
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print(f"Erreur lors de la génération du graphique comptable 1 : {str(e)}")
+        return jsonify({'error': 'Graphique non disponible'}), 500
+
+# Route pour le deuxième graphique
+@app.route('/get_graph_comptable2', methods=['GET'])
+def get_graph_comptable2():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        nombre_d_unites_vendues_par_produit = dataframe_final_filtered.groupby('product_id')['order_item_id'].sum().reset_index()
+        dataframe_final_filtered['coût_stockage_par_unité'] = dataframe_final_filtered['price_storage_total'] / nombre_d_unites_vendues_par_produit['order_item_id']
+
+        df_plot_cout_stockage = dataframe_final_filtered.groupby('product_category_name_english')['coût_stockage_par_unité'].mean().reset_index()
+
+        # Préparation des données pour le graphique
+        data = {
+            'labels': list(df_plot_cout_stockage['product_category_name_english']),
+            'values': list(df_plot_cout_stockage['coût_stockage_par_unité'])
+        }
+
+        return jsonify(data)
+
+    except Exception as e:
+        print(f"Erreur lors de la génération du graphique comptable 2 : {str(e)}")
+        return jsonify({'error': 'Graphique non disponible'}), 500
+
+@app.route('/get_graph_comptable3', methods=['GET'])
+def get_graph_comptable3():
+    try:
+        chemin_excel = r'.\Data Centric\\result\\donnees_fusion_result.csv'
+        dataframe_final_filtered = pd.read_csv(chemin_excel, sep=';')
+
+        dataframe_final_filtered['order_purchase_timestamp'] = pd.to_datetime(dataframe_final_filtered['order_purchase_timestamp'])
+        dataframe_final_filtered['jours_ecoules_debut_mois'] = dataframe_final_filtered['order_purchase_timestamp'].apply(lambda date: (date - date.replace(day=1)).days + 1)
+
+        dataframe_final_filtered['price_storage_total'] = dataframe_final_filtered['price_storage_per_day'] * dataframe_final_filtered['jours_ecoules_debut_mois']
+        dataframe_final_filtered['prix_total'] = dataframe_final_filtered['price'] + dataframe_final_filtered['price_storage_total'] + dataframe_final_filtered['price_delivery']
+
+        dataframe_final_filtered = dataframe_final_filtered.rename(columns={
+            'price_storage_total': 'Charges',
+            'prix_total': 'Prix total',
+            'price': 'Prix du produit'
+        })
+
+        # Calcul des gains sur le produit
+        dataframe_final_filtered['Gains'] = dataframe_final_filtered['Prix total'] - (dataframe_final_filtered['Charges'] + dataframe_final_filtered['Prix du produit'])
+
+        top_categories = dataframe_final_filtered['product_category_name_english'].value_counts().head(10).index
+        dataframe_top_categories = dataframe_final_filtered[dataframe_final_filtered['product_category_name_english'].isin(top_categories)]
+
+        df_plot = dataframe_top_categories.melt(id_vars='product_category_name_english',
+                                                value_vars=['Charges', 'Prix total', 'Prix du produit', 'Gains'],  # Ajout de 'Gains'
+                                                var_name='cost_type',
+                                                value_name='cost_value')
+
+        # Préparation des données pour le graphique
+        data = {
+            'labels': list(df_plot['product_category_name_english'].unique()),
+            'datasets': []
+        }
+        max_value = 1000
+        for cost_type, color in zip(df_plot['cost_type'].unique(), ['rgba(255, 99, 132, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(255, 206, 86, 0.2)', 'rgba(75, 192, 192, 0.2)']):  # Ajout de couleur pour 'Gains'
+            # Ajout de cette ligne pour définir `dataset_values`
+            dataset_values = df_plot[df_plot['cost_type'] == cost_type]['cost_value'].tolist()
+            dataset_values = [min(value, max_value) for value in dataset_values]
+            data['datasets'].append({
+                'label': cost_type,
+                'data': dataset_values,
+                'backgroundColor': color,
+                'borderColor': color.replace('0.2', '1'),
+                'borderWidth': 1
+            })
+
+        return jsonify(data)
+
+    except Exception as e:
+        print(f"Erreur lors de la génération du graphique comptable 3 : {str(e)}")
+        return jsonify({'error': 'Graphique non disponible'}), 500
+
 
 
 @app.route('/login', methods=['POST'])

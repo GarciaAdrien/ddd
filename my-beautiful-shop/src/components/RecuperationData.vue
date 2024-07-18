@@ -1,8 +1,9 @@
 <template>
   <div :class="{ 'recuperation-data': true, 'data-not-loaded': !dataLoaded }">
-    <!-- Bouton pour recharger les données -->
-    <div class="reload-button-wrapper">
-      <button @click="reloadData">Recharger les données</button>
+    <!-- Boutons pour recharger et télécharger les données -->
+    <div class="button-wrapper">
+      <button @click="reloadData" class="action-button">Recharger les données</button>
+      <button @click="downloadExcel" class="action-button" v-if="dataLoaded">Télécharger en Excel</button>
     </div>
 
     <div v-if="!dataLoaded && processing" class="loading-spinner">
@@ -37,8 +38,9 @@
     </div>
   </div>
 </template>
-
 <script>
+import * as XLSX from 'xlsx';
+
 export default {
   name: 'RecuperationData',
   data() {
@@ -144,75 +146,44 @@ export default {
         console.error('Erreur lors du rechargement des données:', error);
         this.processing = false;
       });
+    },
+    downloadExcel() {
+      const ws = XLSX.utils.aoa_to_sheet([this.columns, ...this.data]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Données');
+      XLSX.writeFile(wb, 'data.xlsx');
     }
   }
 };
 </script>
 
 
+
 <style>
-/* Styles pour le composant */
-.recuperation-data {
-  color: #333; /* Couleur du texte principale */
-  background-color: #f9f9f9; /* Fond légèrement teinté */
-  padding: 20px; /* Espacement intérieur */
-  border-radius: 8px; /* Bordures arrondies */
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Ombre légère */
+.button-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 70px;
 }
 
-.data-not-loaded {
-  background-color: #f9f9f9; /* Fond légèrement teinté lorsque les données ne sont pas chargées */
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
-}
-
-.data-table th, .data-table td {
-  border: 1px solid #ddd;
-  padding: 12px; /* Espacement uniforme */
-  min-width: 100px; /* Ajustez selon vos besoins */
-  white-space: nowrap; /* Empêche le texte de se couper */
-  text-align: left;
-}
-
-.data-table th {
-  background-color: #f2f2f2;
+.action-button {
+  padding: 10px 20px;
   font-size: 16px;
-  font-weight: bold; /* Texte en gras pour les entêtes */
-  padding: 14px; /* Espacement ajusté */
-}
-
-.no-data {
-  text-align: center;
-  margin-top: 20px;
-  font-style: italic; /* Style italique pour le message "Aucune donnée disponible." */
-  color: #888; /* Couleur de texte plus légère */
-}
-
-.pagination {
-  text-align: center;
-  margin-top: 20px; /* Espacement entre le tableau et la pagination */
-}
-
-.pagination button {
-  margin: 0 5px; /* Espacement des boutons */
-  padding: 8px 16px; /* Espacement intérieur des boutons */
+  background-color: rgb(244, 146, 146);
+  color: white;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  background-color: #f2f2f2;
-  border: 1px solid #ddd;
-  border-radius: 4px; /* Bordures arrondies pour les boutons */
-  transition: background-color 0.3s ease; /* Transition douce pour le changement de couleur au survol */
+  transition: background-color 0.3s ease;
+  margin: 0 10px; /* Ajout d'un espacement entre les boutons */
 }
 
-.pagination button:hover {
-  background-color: #ddd; /* Couleur de fond au survol */
+.action-button:hover {
+  background-color: #f54a4a; /* Couleur légèrement plus foncée au survol */
 }
 
+/* Reste des styles */
 .loading-spinner {
-
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -225,13 +196,13 @@ export default {
   border-top: 4px solid #fefefe;
   width: 50px;
   height: 50px;
-  left:50%;
-  right:50%;
+  left: 50%;
+  right: 50%;
   animation: spin 1s linear infinite;
   margin-top: 100px;
   justify-content: center;
   position: absolute;
-  margin-left:25px;
+  margin-left: 25px;
 }
 
 @keyframes spin {
@@ -251,33 +222,58 @@ export default {
 .table-wrapper {
   width: 100%;
   overflow-x: auto;
-  padding: 20px; /* Espacement intérieur ajusté */
-  border-radius: 8px; /* Bordures arrondies */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Légère ombre pour un effet flottant */
-  margin-top: 80px;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
 }
 
-.reload-button-wrapper {
-  position: absolute;
-  left: 50%;
-  right: 50%;
-  top: 60px;
-
-  justify-content: center;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
 }
 
-.reload-button-wrapper button {
-  padding: 10px 20px;
+.data-table th,
+.data-table td {
+  border: 1px solid #ddd;
+  padding: 12px;
+  min-width: 100px;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.data-table th {
+  background-color: #f2f2f2;
   font-size: 16px;
-  background-color: rgb(244, 146, 146);
-  color: white;
-  border: none;
-  border-radius: 4px;
+  font-weight: bold;
+  padding: 14px;
+}
+
+.no-data {
+  text-align: center;
+  margin-top: 20px;
+  font-style: italic;
+  color: #888;
+}
+
+.pagination {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.pagination button {
+  margin: 0 5px;
+  padding: 8px 16px;
   cursor: pointer;
+  background-color: #f2f2f2;
+  border: 1px solid #ddd;
+  border-radius: 4px;
   transition: background-color 0.3s ease;
 }
 
-.reload-button-wrapper button:hover {
-  background-color: white;
+.pagination button:hover {
+  background-color: #ddd;
 }
+
 </style>
